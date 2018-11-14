@@ -1,0 +1,69 @@
+[common]
+SCOPES                = https://www.googleapis.com/auth/analytics.readonly
+DISCOVERY_URI         = https://analyticsreporting.googleapis.com/$discovery/rest
+KEY_FILE_LOCATION     = private.key
+SERVICE_ACCOUNT_EMAIL = EMAIL-ADDRESS
+MAX_RESULTS           = 10000
+INVALID_VALUE         = 
+VIEW_ID               = VIEW_ID
+
+[custom-dimensions]
+dimension1  = Example 1
+dimension2  = Example 2
+dimension3  = Example 3
+dimension4  = Example 4
+dimension5  = Example 5
+dimension6  = Example 6
+dimension7  = Example 7
+dimension8  = Example 8
+dimension9  = Example 9
+dimension10 = Example 10
+dimension11 = Example 11
+dimension12 = Example 12
+
+# Custom dimensions that can stitch multiple batch queries together
+[stitch-dimensions]
+dim-1 = dimension1
+dim-2 = dimension9
+dim-3 = dimension11
+
+# Dimensions for user information only
+[user-dimensions]
+dim-1 = dimension1
+dim-2 = dimension2
+dim-3 = dimension6
+dim-4 = dimension5
+dim-5 = dimension7
+dim-6 = dimension12
+
+# Standard results dimensions - first two elements must be user ID and timestamp
+[results-dimensions]
+dim-1 = dimension1
+dim-2 = dimension9
+dim-3 = dimension11
+dim-4 = dimension4
+dim-5 = eventCategory
+dim-6 = eventAction
+dim-7 = eventLabel
+
+[batch-dimensions-1]
+dim-1 = userType
+dim-2 = browser
+dim-3 = browserSize
+dim-4 = browserVersion
+dim-5 = operatingSystem
+
+[batch-dimensions-2]
+dim-1 = operatingSystemVersion
+dim-2 = deviceCategory
+
+[batch-dimensions-3]
+dim-1 = medium
+dim-2 = source
+
+[batch-dimensions-4]
+dim-1 = mobileDeviceBranding
+dim-2 = mobileDeviceModel
+dim-3 = mobileInputSelector
+dim-4 = mobileDeviceInfo
+
