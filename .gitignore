@@ -1,2 +1,5 @@
 download.cfgvenv
 .idea
+venv
+download.cfg
+private.key

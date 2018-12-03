@@ -64,6 +64,27 @@ def errorMsg (sMsg):
     printStdError("Error: " + sMsg)
     sys.exit(-1)
 
+def getArgParser ():
+    """Management of the command-line argument parser"""
+    oParser = argparse.ArgumentParser(description=PROG_DESC, formatter_class=argparse.RawTextHelpFormatter)
+    oParser.add_argument('-b', '--browser-times', action='store_true', dest='bBrowserTime',
+                         help='convert browser time from milliseconds to date/time')
+    oParser.add_argument('-f', '--filter', action='store', dest='sFilter',
+                         help='filter the results', metavar='FILTER')
+    oParser.add_argument('-d', '--dimensions', action='store_true', dest='bShowDims',
+                         help='add the dimension names in the header with the translations')
+    oParser.add_argument('-r', '--results', action='store_true', dest='bResults',
+                         help='get the results only')
+    oParser.add_argument('-s', '--skip-header', action='store_true', dest='bSkipHeader',
+                         help='skip the header row')
+    oParser.add_argument('-u', '--users', action='store_true', dest='bUsers',
+                         help='get the user information only')
+    oParser.add_argument('-v', '--validate', action='store_true', dest='bValidate',
+                         help='validate only, providing counts')
+    oParser.add_argument('sStartDate', help='starting date (required)', metavar='START-DATE')
+    oParser.add_argument('sEndDate', help='ending date (optional)', metavar='END-DATE', nargs='?')
+    return oParser
+
 class Download:
     def main (self):
         """Primary class method"""
@@ -102,6 +123,10 @@ class Download:
         self.STITCH_DIMENSIONS     = self.getConfigDimensions('stitch-dimensions')
         self.USER_DIMENSIONS       = self.getConfigDimensions('user-dimensions')
         self.RESULTS_DIMENSIONS    = self.getConfigDimensions('results-dimensions')
+
+        # First dimension of users and results must be equal
+        if self.USER_DIMENSIONS[0] != self.RESULTS_DIMENSIONS[0]:
+            errorMsg("First dimension of user and result groups must be equal")
         
         # Get each batch of dimensions as a separate array
         self.BATCH_DIMENSIONS = []
@@ -119,32 +144,11 @@ class Download:
         }
                 
 
-    def getArgParser (self):
-        """Management of the command-line argument parser"""
-        oParser = argparse.ArgumentParser(description=PROG_DESC, formatter_class=argparse.RawTextHelpFormatter)
-        oParser.add_argument('-b', '--browser-times', action='store_true', dest='bBrowserTime',
-                             help='convert browser time from milliseconds to date/time')
-        oParser.add_argument('-f', '--filter', action='store', dest='sFilter',
-                             help='filter the results', metavar='FILTER')
-        oParser.add_argument('-d', '--dimensions', action='store_true', dest='bShowDims',
-                             help='add the dimension names in the header with the translations')
-        oParser.add_argument('-r', '--results', action='store_true', dest='bResults',
-                             help='get the results only')
-        oParser.add_argument('-s', '--skip-header', action='store_true', dest='bSkipHeader',
-                             help='skip the header row')
-        oParser.add_argument('-u', '--users', action='store_true', dest='bUsers',
-                             help='get the user information only')
-        oParser.add_argument('-v', '--validate', action='store_true', dest='bValidate',
-                             help='validate only, providing counts')
-        oParser.add_argument('sStartDate', help='starting date (required)', metavar='START-DATE')
-        oParser.add_argument('sEndDate', help='ending date (optional)', metavar='END-DATE', nargs='?')
-        return oParser
-
     def getCmdOptions (self):
         """Get all command line args as an object, stored in a static variable"""
 
         # Return the attribute if set, otherwise set 
-        oParser = self.getArgParser()
+        oParser = getArgParser()
         self.oCmdOptions = oParser.parse_args()
 
         # End date is optional - if not set, use the start date (one day only)
@@ -198,15 +202,6 @@ class Download:
             errorMsg("Missing configuration section: " + sSection)
         return dSectionConfig
 
-    def y (self):
-        try:
-            print("trying")
-            return self.z
-        except AttributeError:
-            print("not set")
-            self.z = 2
-            return self.z
-        
     def getAnalytics (self):
         """Initializes an analyticsreporting service object"""
         try:
@@ -367,73 +362,83 @@ class Download:
             # Create an empty result set
             aEmpty = []
             for sField in aBatchDimSet:
-                aEmpty.append(INVALID_VALUE)
+                aEmpty.append(self.INVALID_VALUE)
 
-            # Build the batch elements with first 2 common elements for user and time
-            aDimSet = [ { 'name': CUSTOM_DIM_USER }, { 'name':  CUSTOM_DIM_TIME } ]
+            # Add the batch dimensions to the common "stitch" elements and get the report
+            aDimSet = self.STITCH_DIMENSIONS.copy()
             aDimSet.extend(aBatchDimSet)
-            aBatchResults = processReport(aDimSet)
+            aBatchResults = self.processReport(aDimSet)
 
-            # Add the header, removing the 2 common elements (time field may be "ga:nthMinute")
+            # Add the header to the results header, removing the stitch elements
             aHeader = aBatchResults.pop(0)
-            aHeader.pop(0)
-            aHeader.pop(0)
+            for sStitchCol in self.STITCH_DIMENSIONS:
+                aHeader.pop(0)
             aResults[0].extend(aHeader)
 
-            # Create 2-dimensional dictionary with the two common dimensions
-            aMiscByUserTime = {}
+            # Create dictionary with the stitch elements forming the key
+            aStitchElements = {}
             for aRow in aBatchResults:
-                sUserId = aRow.pop(0)
-                sTimeId = aRow.pop(0)
-                if sUserId not in aMiscByUserTime:
-                    aMiscByUserTime[sUserId] = {}
-                aMiscByUserTime[sUserId][sTimeId] = aRow
+                aKey = []
+                for sStitchCol in self.STITCH_DIMENSIONS:
+                    aKey.append("%s = %s" % (sStitchCol, aRow.pop(0)))
+                sKey = ' && '.join(aKey)
+                aStitchElements[sKey] = aRow
 
             # Add the each row to the results, skipping the header row (n == 0)
             for n in range(1, len(aResults)):
 
-                # Get the common dimensions for user and time
-                aRow    = aResults[n]
-                sUserId = aRow[0]
-                iTimeId = int(aRow[1])
+                # Get this row
+                aRow = aResults[n]
+                
+                # Get the key using the stitch elements
+                aKey = []
+                for sStitchCol in self.STITCH_DIMENSIONS:
+                    iResultCol = self.RESULTS_DIMENSIONS.index(sStitchCol)
+                    aKey.append("%s = %s" % (sStitchCol, aRow[iResultCol]))
+                sKey = ' && '.join(aKey)
 
-                # User exists in the miscellaneous results
-                if sUserId in aMiscByUserTime:
-
-                    # Loop through each element, using the element with an earlier or equal time
-                    aMatch = None
-                    for sRowMinutes in aMiscByUserTime[sUserId]:
-                        if aMatch == None or int(sRowMinutes) <= iTimeId:
-                            aMatch = aMiscByUserTime[sUserId][sRowMinutes]
-                    aRow.extend(aMatch)
+                # Element exists - add to the results
+                if sKey in aStitchElements:
+                    aRow.extend(aStitchElements[sKey])
                 else:
                     aRow.extend(aEmpty)
 
 
     def combineReports (self, aUsers, aResults):
         """Combine both reports into a single report"""
+        print(aUsers)
+        print(aResults)
 
-        # First column is user ID - throw out user ID from results and combine to create the complete header 
+        # First column is common - throw out from results and combine to create the complete header 
         aHeader        = aUsers.pop(0)
         aHeaderResults = aResults.pop(0)
         aHeaderResults.pop(0)
         aHeader.extend(aHeaderResults)
 
+        # Get the name of the common column
+        sCommonColumn = aHeader[0]
+
         # Start the rows, adding the header
         aAllRows = [ aHeader ]
 
-        # Get all users by user ID
-        aUsersById = { }
+        # Get all users by the first column, which must be the same as the results
+        aUsersByCommonId = { }
         for aRow in aUsers:
-            aUsersById[aRow[0]] = aRow
+            aUsersByCommonId[aRow[0]] = aRow
 
-        # Go through each result, adding the user information (session ID is first element in results)
+        # Go through each result, adding the user information
         for aResult in aResults:
-            sUserId = aResult.pop(0)
-            if sUserId in aUsersById:
-                aAllRows.append(aUsersById[sUserId] + aResult)
+
+            # First element will be common with users
+            sCommonId = aResult.pop(0)
+
+            # User found with common ID - combine user and result information into a single row
+            if sCommonId in aUsersByCommonId:
+                aAllRows.append(aUsersByCommonId[sCommonId] + aResult)
+
+            # No user found with common ID - this should never happen
             else:
-                errorMsg('result found without matching user information for user ID: %s' % (sUserId))
+                errorMsg('result but no user found with %s value of %s' % (sCommonColumn, sCommonId))
 
         return aAllRows
 
@@ -448,8 +453,8 @@ class Download:
         """Download the users and results, adding the miscellaneous dimensions"""
         aUsers   = self.processReport(self.USER_DIMENSIONS)
         aResults = self.processReport(self.RESULTS_DIMENSIONS)
-        self.addMiscDimensions(aResults)
-        self.outputRows(combineReports(aUsers, aResults), sFile)
+        #self.addMiscDimensions(aResults)
+        self.outputRows(self.combineReports(aUsers, aResults), sFile)
 
 # Run the system
 oDownload = Download()
