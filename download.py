@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python
 
 """
    Download System for Google Analytics
@@ -26,7 +26,7 @@ import configparser
 LOCAL_DIR   = os.path.dirname(os.path.realpath(__file__))
 CONFIG_FILE = "download.cfg"
 
-# Maxium number of dimensions "batches" (can be increased if neeeded)
+# Maximum number of dimensions "batches" (can be increased if neeeded)
 MAX_DIM_BATCHES = 20
 
 # Operators for search
