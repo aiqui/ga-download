@@ -12,15 +12,19 @@ program stitches together multiple sets of dimensions using common
 This program assumes that you have already defined all of your dimensions.
 We are restricted from providing any personal information to GA, but you
 can use a numerical user ID.  Two common custom "stitch" dimensions would be:
-* numerical user ID (ideally encrypted)
+
+* numerical user or session ID (ideally encrypted)
 * browser timestamp
 
-For this program to work correctly, these dimensions must defined 
-with every call to the [GA measurement protocol](https://developers.google.com/analytics/devguides/collection/protocol/v1/reference).
+These two custom dimensions would uniquely identify a specific session 
+at a specific microsecond (i.e. browser timestamp).  To work correctly, 
+the two dimensions must defined with every call to the 
+[GA measurement protocol](https://developers.google.com/analytics/devguides/collection/protocol/v1/reference).
 
-With every GA batch download, if one of the dimensions is not defined,
-the row will not be returned even if all other dimensions are defined.
-So you should be grouping similar dimensions, e.g. mobile platform dimensions.
+Please note, with every GA batch download, if one of the dimensions is 
+not defined, the row will not be returned even if all other 
+dimensions are defined. So you should be grouping similar dimensions, 
+e.g. mobile platform dimensions.
 
 ### User Dimensions
 
