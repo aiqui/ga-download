@@ -12,6 +12,7 @@ from oauth2client import tools
 from datetime import datetime
 from datetime import timedelta
 from datetime import date
+from pathlib import Path
 import time
 import calendar
 import httplib2
@@ -22,6 +23,7 @@ import os
 import copy
 import argparse
 import configparser
+import pprint
 
 LOCAL_DIR   = os.path.dirname(os.path.realpath(__file__))
 CONFIG_FILE = "download.cfg"
@@ -64,15 +66,21 @@ def errorMsg (sMsg):
     printStdError("Error: " + sMsg)
     sys.exit(-1)
 
+def getPprint ():
+    """Get the pretty print object instance"""
+    if not hasattr(getPprint, "pp"):
+        getPprint.pp = pprint.PrettyPrinter(indent=2)
+    return getPprint.pp
+
 def getArgParser ():
     """Management of the command-line argument parser"""
     oParser = argparse.ArgumentParser(description=PROG_DESC, formatter_class=argparse.RawTextHelpFormatter)
-    oParser.add_argument('-b', '--browser-times', action='store_true', dest='bBrowserTime',
-                         help='convert browser time from milliseconds to date/time')
     oParser.add_argument('-f', '--filter', action='store', dest='sFilter',
                          help='filter the results', metavar='FILTER')
     oParser.add_argument('-d', '--dimensions', action='store_true', dest='bShowDims',
                          help='add the dimension names in the header with the translations')
+    oParser.add_argument('-o', '--output-file', action='store', dest='sOutputFile',
+                         help='output file (instead of standard output)', metavar='FILE')
     oParser.add_argument('-r', '--results', action='store_true', dest='bResults',
                          help='get the results only')
     oParser.add_argument('-s', '--skip-header', action='store_true', dest='bSkipHeader',
@@ -81,6 +89,8 @@ def getArgParser ():
                          help='get the user information only')
     oParser.add_argument('-v', '--validate', action='store_true', dest='bValidate',
                          help='validate only, providing counts')
+    oParser.add_argument('-x', '--debug-mode', action='store_true', dest='bDebugMode',
+                         help='debug mode that provides queries, counts and other information')
     oParser.add_argument('sStartDate', help='starting date (required)', metavar='START-DATE')
     oParser.add_argument('sEndDate', help='ending date (optional)', metavar='END-DATE', nargs='?')
     return oParser
@@ -151,6 +161,14 @@ class Download:
         oParser = getArgParser()
         self.oCmdOptions = oParser.parse_args()
 
+        # Output file option - validate path by creating and deleting
+        if self.oCmdOptions.sOutputFile and not os.path.isfile(self.oCmdOptions.sOutputFile):
+            try: 
+                Path(self.oCmdOptions.sOutputFile).touch()
+                os.remove(self.oCmdOptions.sOutputFile)
+            except FileNotFoundError:
+                errorMsg("Invalid output file: " + self.oCmdOptions.sOutputFile)
+        
         # End date is optional - if not set, use the start date (one day only)
         if self.oCmdOptions.sEndDate == None:
             self.oCmdOptions.sEndDate = self.oCmdOptions.sStartDate
@@ -259,6 +277,10 @@ class Download:
             aBatchParams['reportRequests'][0]['pageToken'] = sPageToken
         else:
             aBatchParams['reportRequests'][0].pop('pageToken', None)
+
+        if self.oCmdOptions.bDebugMode:
+            print("getReport - batch params: ")
+            getPprint().pprint(aBatchParams)
         return oAnalytics.reports().batchGet(body=aBatchParams).execute()
 
     def getResponse (self, oResponse, bHeader):
@@ -282,16 +304,23 @@ class Download:
                 for i in range(0, len(aDimensions)):
                     aDimensions[i] = aDimensions[i].encode('ascii', 'ignore').decode('ascii')
                 aAllRows.append(aDimensions)
+                
+        if self.oCmdOptions.bDebugMode:
+            if sNextPageToken:
+                print("Response: number of rows %d with next token %s" % (len(aAllRows) - 1, sNextPageToken))
+            else:
+                print("Response: number of rows %d (no next page)" % (len(aAllRows) - 1))
+                
         return { 'rows': aAllRows, 'nextPageToken': sNextPageToken }
 
-    def outputRows (self, aRows, sFile = None):
+    def outputRows (self, aRows):
         """CSV output, optionally saving to a file"""
 
         # Use standard output or write to a file
-        if sFile == None:
+        if self.oCmdOptions.sOutputFile == None:
             fpOutput = sys.stdout
         else:
-            fpOutput = open(sFile, 'w')
+            fpOutput = open(self.oCmdOptions.sOutputFile, 'w')
 
         # Translate the header values unless skipping it altogether
         if self.oCmdOptions.bSkipHeader:
@@ -313,9 +342,10 @@ class Download:
         for aRow in aRows:
             oFile.writerow(aRow)
 
-        # Close the file unless writing to standard output
-        if sFile == None:
+        # If writing to a file, close and provide a status message
+        if self.oCmdOptions.sOutputFile:
             fpOutput.close()
+            print("Download complete, %d rows, output file: %s" % (len(aRows), self.oCmdOptions.sOutputFile))
 
 
     def getStartDate (self, bReset = False):
@@ -406,8 +436,6 @@ class Download:
 
     def combineReports (self, aUsers, aResults):
         """Combine both reports into a single report"""
-        print(aUsers)
-        print(aResults)
 
         # First column is common - throw out from results and combine to create the complete header 
         aHeader        = aUsers.pop(0)
@@ -449,12 +477,12 @@ class Download:
         return (re.search(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$', sDate) or
                 re.search(r'^(today|yesterday|[0-9]+daysAgo)$', sDate))
 
-    def downloadCombined (self, sFile = None):
+    def downloadCombined (self):
         """Download the users and results, adding the miscellaneous dimensions"""
         aUsers   = self.processReport(self.USER_DIMENSIONS)
         aResults = self.processReport(self.RESULTS_DIMENSIONS)
-        #self.addMiscDimensions(aResults)
-        self.outputRows(self.combineReports(aUsers, aResults), sFile)
+        self.addMiscDimensions(aResults)
+        self.outputRows(self.combineReports(aUsers, aResults))
 
 # Run the system
 oDownload = Download()
