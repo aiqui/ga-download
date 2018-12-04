@@ -75,10 +75,10 @@ def getPprint ():
 def getArgParser ():
     """Management of the command-line argument parser"""
     oParser = argparse.ArgumentParser(description=PROG_DESC, formatter_class=argparse.RawTextHelpFormatter)
+    oParser.add_argument('-d', '--delimiter', action='store', dest='sDelimiter',
+                         help='delimit the output with this character', metavar='DELIMITER')
     oParser.add_argument('-f', '--filter', action='store', dest='sFilter',
                          help='filter the results', metavar='FILTER')
-    oParser.add_argument('-d', '--dimensions', action='store_true', dest='bShowDims',
-                         help='add the dimension names in the header with the translations')
     oParser.add_argument('-o', '--output-file', action='store', dest='sOutputFile',
                          help='output file (instead of standard output)', metavar='FILE')
     oParser.add_argument('-r', '--results', action='store_true', dest='bResults',
@@ -91,6 +91,10 @@ def getArgParser ():
                          help='validate only, providing counts')
     oParser.add_argument('-x', '--debug-mode', action='store_true', dest='bDebugMode',
                          help='debug mode that provides queries, counts and other information')
+    oParser.add_argument('--dimension-names', action='store_true', dest='bAddDimNames',
+                         help='add the dimension names in the header with the translations')
+    oParser.add_argument('--skip-translation', action='store_true', dest='bSkipDimTranslate',
+                         help='skip the translation of dimension names in the header')
     oParser.add_argument('sStartDate', help='starting date (required)', metavar='START-DATE')
     oParser.add_argument('sEndDate', help='ending date (optional)', metavar='END-DATE', nargs='?')
     return oParser
@@ -325,18 +329,21 @@ class Download:
         # Translate the header values unless skipping it altogether
         if self.oCmdOptions.bSkipHeader:
             aRows.pop(0)
-        else:
+        elif not self.oCmdOptions.bSkipDimTranslate:
             for n in range(0, len(aRows[0])):
                 sOriginal = aRows[0][n]
                 if sOriginal in self.CUSTOM_DIMENSIONS:
                     sTranslate = self.CUSTOM_DIMENSIONS[aRows[0][n]]
-                    if self.oCmdOptions.bShowDims:
+                    if self.oCmdOptions.bAddDimNames:
                         aRows[0][n] = '%s (%s)' % (sTranslate, sOriginal)
                     else:
                         aRows[0][n] = sTranslate
 
         # Get the CSV writer, using special options
-        oFile = csv.writer(fpOutput)
+        if self.oCmdOptions.sDelimiter:
+            oFile = csv.writer(fpOutput, delimiter=self.oCmdOptions.sDelimiter)
+        else:
+            oFile = csv.writer(fpOutput)
 
         # Write all rows
         for aRow in aRows:

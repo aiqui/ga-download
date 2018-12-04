@@ -36,7 +36,7 @@ dim-4 = dimension5
 dim-5 = dimension7
 dim-6 = dimension12
 
-# Standard results dimensions - first two elements must be user ID and timestamp
+# Standard results dimensions - the first element must match the first element of user-dimensions
 [results-dimensions]
 dim-1 = dimension1
 dim-2 = dimension9
@@ -46,6 +46,7 @@ dim-5 = eventCategory
 dim-6 = eventAction
 dim-7 = eventLabel
 
+# Batch dimensions follow below
 [batch-dimensions-1]
 dim-1 = userType
 dim-2 = browser
