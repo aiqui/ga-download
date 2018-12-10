@@ -247,7 +247,18 @@ class Download:
         
         # Break apart each filter
         aFilters = []
-        for sFilter in self.oCmdOptions.sFilter.split(' AND '):
+        sFilter  = self.oCmdOptions.sFilter
+        if re.search(r' AND ', sFilter):
+            sOperator = 'AND'
+            aSplit    = sFilter.split(' AND ')
+        elif re.search(r' OR ', sFilter):
+            sOperator = 'OR'
+            aSplit    = sFilter.split(' OR ')
+        else:
+            sOperator = None
+            aSplit    = [ sFilter ]
+
+        for sFilter in aSplit:
             oMatch = reFilter.match(sFilter)
             if oMatch == None:
                 errorMsg("Invalid filter arguments: " + self.oCmdOptions.sFilter)
@@ -256,8 +267,8 @@ class Download:
                 'operator':      oMatch.group(2),
                 'expressions':   [ oMatch.group(3).strip() ]
             })
-            
-        return aFilters
+
+        return { "operator": sOperator, "filters": aFilters }
             
     def getReport (self, aDimensions, sPageToken = None):
         """Get the report with certain dimensions and starting element"""
@@ -275,7 +286,7 @@ class Download:
         aBatchParams['reportRequests'][0]['dateRanges'] = [ { 'startDate': self.oCmdOptions.sStartDate,
                                                               'endDate': self.oCmdOptions.sEndDate } ]
         if aDimFilters:
-            aBatchParams['reportRequests'][0]['dimensionFilterClauses'] = [{ 'filters': aDimFilters }]
+            aBatchParams['reportRequests'][0]['dimensionFilterClauses'] = [ aDimFilters ]
 
         if sPageToken != None:
             aBatchParams['reportRequests'][0]['pageToken'] = sPageToken
