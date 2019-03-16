@@ -13,6 +13,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import date
 from pathlib import Path
+from OpenSSL import crypto
 import time
 import calendar
 import httplib2
@@ -226,15 +227,18 @@ class Download:
 
     def getAnalytics (self):
         """Initializes an analyticsreporting service object"""
-        try:
+        if hasattr(self, 'oAnalytics'):
             return self.oAnalytics
-        except AttributeError:
+        try: 
             oCredentials = ServiceAccountCredentials.from_p12_keyfile(self.SERVICE_ACCOUNT_EMAIL,
                                                                       self.KEY_FILE_LOCATION,
                                                                       scopes=self.SCOPES)
             oHttp = oCredentials.authorize(httplib2.Http())
             self.oAnalytics = build('analytics', 'v4', http=oHttp, discoveryServiceUrl=self.DISCOVERY_URI)
             return self.oAnalytics
+        except BaseException as e:
+            errorMsg("Unable to build Google Analytics authorization: " + str(e))
+            
 
     def getDimensionFilters (self):
         """Get optional dimension filters"""
