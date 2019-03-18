@@ -13,7 +13,6 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import date
 from pathlib import Path
-from OpenSSL import crypto
 import time
 import calendar
 import httplib2
